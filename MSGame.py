@@ -61,11 +61,12 @@ class MSGame:
         # Check other squares
         for x in range(row - 1, row + 2):
             for y in range(col - 1, col + 2):
-                if ((x < 0) or (y < 0) or (x >= self.__height) or (y >= self.__width)):
+                if ((x < 0) or (y < 0) or (x >= self.__height) or (y >= self.__width)):  # Avoid going out of the board borders
                     continue
 
-                if (self.__board[x][y].status == SquareStatus.PENDING or self.__board[x][
-                    y].status == SquareStatus.OPENED):  # skip to the next square if it is Pending
+                if (self.__board[x][y].status == SquareStatus.PENDING or
+                        self.__board[x][y].status == SquareStatus.OPENED or
+                        self.__board[x][y].flagState == FlagStatus.ON):  # skip to the next square
                     continue
 
                 self.update_board(x, y)  # Check the other squares using recursive

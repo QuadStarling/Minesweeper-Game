@@ -8,7 +8,6 @@ def play():
     start_frame.pack_forget()
     start_frame.destroy()
     g = Game(main_window)
-
     g.Create_Game(10, 10, 5)
 
 

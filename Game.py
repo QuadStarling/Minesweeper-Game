@@ -11,6 +11,9 @@ class Game:
         self.__stats_frame = tk.Frame(self.__window)
         self.__stats_frame.grid(row=0, column=0, pady=3)
 
+        self.__coverFrame = tk.Frame(self.__window,
+                                     bg='')  # Covers the game frame to block the player from clicking the buttons
+
         self.__buttons_list = None
         self.__game = None
         self.__resetButton = None
@@ -39,10 +42,18 @@ class Game:
         self.__game.generate_neighbor_info()
 
     def resetGame(self, event):
+        self.__coverFrame.grid_forget()
         self.__game.clear_board()
         self.generate_game_info()
         for i in range(self.__game.height):
             for j in range(self.__game.width):
+                if (self.__game.get_board()[i][j].flagState == FlagStatus.ON):
+                    self.__game.get_board()[i][j].flagState = FlagStatus.OFF
+                    self.__buttons_list[i][j].bind("<ButtonRelease-1>",
+                                                   lambda e, btn=self.__buttons_list[i][j]: self.show(btn))
+                    self.__buttons_list[i][j].config(bg="lightgray", text='', width=2, height=1, relief=tk.FLAT,
+                                                     state=tk.NORMAL)
+
                 if (self.__game.get_board()[i][j].status == SquareStatus.OPENED):
                     self.__game.get_board()[i][j].status = SquareStatus.HIDDEN
                     self.__buttons_list[i][j].config(bg="lightgray", text='', width=2, height=1, relief=tk.FLAT,
@@ -64,12 +75,19 @@ class Game:
                     if (i == row and j == column):
                         continue
 
-                    if (self.__game.get_board()[i][j].has_mine == True):
+                    if (self.__game.get_board()[i][j].has_mine == True and self.__game.get_board()[i][j].flagState == FlagStatus.OFF):
                         self.__buttons_list[i][j].config(bg="white", text='x')
                         self.__game.get_board()[i][j].status = SquareStatus.OPENED
 
+                    elif (self.__game.get_board()[i][j].has_mine == False and self.__game.get_board()[i][j].flagState == FlagStatus.ON):
+                        self.__buttons_list[i][j].config(bg="green")
+
+
+
+
             self.__game.get_board()[row][column].status = SquareStatus.OPENED
             self.__resetButton.config(text="X   X\n/``````\\")
+            self.__coverFrame.grid(row=1, column=0, sticky="nsew")
             return
 
         self.__game.update_board(row, column)
@@ -96,6 +114,8 @@ class Game:
             if (current_color == "orange"):
                 button.config(bg="lightgray", state=tk.NORMAL)
                 button.bind("<ButtonRelease-1>", lambda event: self.show(button))
+                self.__game.get_board()[row][col].flagState = FlagStatus.OFF
             else:
                 button.config(bg="orange", state=tk.DISABLED)
                 button.bind("<ButtonRelease-1>", lambda event: self.__resetButton.config(text="O   O\n\\___/"))
+                self.__game.get_board()[row][col].flagState = FlagStatus.ON

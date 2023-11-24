@@ -1,5 +1,11 @@
 import tkinter as tk
 from MSGame import *
+from enum import Enum
+
+
+class FirstSafeClick(Enum):
+    ACTIVE = 0
+    INACTIVE = 1
 
 
 class Game:
@@ -18,6 +24,8 @@ class Game:
         self.__game = None
         self.__resetButton = None
 
+        self.__firstSafeClick = FirstSafeClick.ACTIVE  # Makes sure that the first click is not a mine
+
     def Create_Game(self, width, height, mines):
         self.__resetButton = tk.Button(self.__stats_frame, text="O   O\n\\___/", bd=4, bg="yellow")
         self.__resetButton.pack()
@@ -25,7 +33,6 @@ class Game:
         self.__resetButton.bind("<ButtonRelease-1>", self.resetGame)
 
         self.__game = MSGame(width, height, mines)
-        self.generate_game_info()
         squares = (width * height)
         self.__buttons_list = [[] for _ in range(height)]
 
@@ -37,14 +44,10 @@ class Game:
             self.__buttons_list[i // height].append(button)
             button.grid(row=(i // height), column=i % width, pady=1, padx=1)
 
-    def generate_game_info(self):
-        self.__game.generate_minefield()
-        self.__game.generate_neighbor_info()
-
     def resetGame(self, event):
         self.__coverFrame.grid_forget()
         self.__game.clear_board()
-        self.generate_game_info()
+        self.__firstSafeClick = FirstSafeClick.ACTIVE
         for i in range(self.__game.height):
             for j in range(self.__game.width):
                 if (self.__game.get_board()[i][j].flagState == FlagStatus.ON):
@@ -67,6 +70,11 @@ class Game:
         row = button.grid_info()['row']
         column = button.grid_info()['column']
         self.__resetButton.config(text="O   O\n\\___/")
+
+        if (self.__firstSafeClick == FirstSafeClick.ACTIVE):
+            self.__game.generate_minefield(row, column)
+            self.__game.generate_neighbor_info()
+            self.__firstSafeClick = FirstSafeClick.INACTIVE
 
         if (self.__game.get_board()[row][column].has_mine == True):
             self.__buttons_list[row][column].config(bg="red", text='x')

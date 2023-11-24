@@ -24,11 +24,11 @@ class MSGame:
     def get_board(self):
         return self.__board
 
-    def generate_minefield(self):
+    def generate_minefield(self, row, col):
         for i in range(self.__mines):
             x = random.randint(0, self.__height - 1)  # Generate a random row
             y = random.randint(0, self.__width - 1)  # Generate a random column
-            while (self.__board[x][y].has_mine == True):  # Check if it does not create the same coordinates twice
+            while (self.__board[x][y].has_mine == True or (row == x and col == y)):  # Check if it does not create the same coordinates twice
                 x = random.randint(0, self.__height - 1)
                 y = random.randint(0, self.__width - 1)
             self.__board[x][y].has_mine = True  # Now this square has a mine

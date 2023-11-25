@@ -20,9 +20,11 @@ class Game:
         self.__coverFrame = tk.Frame(self.__window,
                                      bg='')  # Covers the game frame to block the player from clicking the buttons
 
-        self.__buttons_list = None
+        self.__buttons_list = None  # A list to store buttons
         self.__game = None
-        self.__resetButton = None
+        self.__resetButton = None  # A button that resets the game
+
+        self.__squareCounter = 0  # Counts how many squares have been opened up that are not mines
 
         self.__firstSafeClick = FirstSafeClick.ACTIVE  # Makes sure that the first click is not a mine
 
@@ -36,6 +38,8 @@ class Game:
         squares = (width * height)
         self.__buttons_list = [[] for _ in range(height)]
 
+        # places and creates the buttons on the frame
+        # while also storing them in the list
         for i in range(squares):
             button = tk.Button(self.__game_frame, bg="lightgray", width=2, height=1, relief=tk.FLAT)
             button.bind("<Button-1>", lambda event, btn=button: self.holding(btn))
@@ -48,6 +52,7 @@ class Game:
         self.__coverFrame.grid_forget()
         self.__game.clear_board()
         self.__firstSafeClick = FirstSafeClick.ACTIVE
+        self.__squareCounter = 0
         for i in range(self.__game.height):
             for j in range(self.__game.width):
                 if (self.__game.get_board()[i][j].flagState == FlagStatus.ON):
@@ -104,15 +109,26 @@ class Game:
                 if (self.__game.get_board()[i][j].status == SquareStatus.PENDING):
                     self.__game.get_board()[i][j].status = SquareStatus.OPENED
                     if (self.__game.get_board()[i][j].neighbor_mines == 0):
+                        self.__squareCounter += 1
                         self.__buttons_list[i][j].config(bg="white",
                                                          text='',
                                                          disabledforeground="blue",
                                                          state=tk.DISABLED)
-                        continue
-                    self.__buttons_list[i][j].config(bg="white",
-                                                     text=str(self.__game.get_board()[i][j].neighbor_mines),
-                                                     disabledforeground="blue",
-                                                     state=tk.DISABLED)
+                    else:
+                        self.__squareCounter += 1
+                        self.__buttons_list[i][j].config(bg="white",
+                                                         text=str(self.__game.get_board()[i][j].neighbor_mines),
+                                                         disabledforeground="blue",
+                                                         state=tk.DISABLED)
+                    if (self.__squareCounter == (self.__game.height * self.__game.width) - self.__game.mines):
+                        self.__resetButton.config(text="-   O\n\\___/")
+                        for r in range(self.__game.height):
+                            for c in range(self.__game.width):
+                                if (self.__game.get_board()[r][c].has_mine == True and self.__game.get_board()[r][c].flagState == FlagStatus.OFF):
+                                    self.place_flag(self.__buttons_list[r][c])
+                        self.__coverFrame.grid(row=1, column=0, sticky="nsew")
+                        return
+
 
     def place_flag(self, button):
         row = button.grid_info()['row']

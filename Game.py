@@ -12,14 +12,10 @@ class Game:
     def __init__(self, window):
         self.__id = None
         self.__window = window
-        self.__game_frame = tk.Frame(self.__window, bg="black", width=500, height=500, relief=tk.SUNKEN)
-        self.__game_frame.grid(row=1, column=0)
-
-        self.__stats_frame = tk.Frame(self.__window)
-        self.__stats_frame.grid(row=0, column=0, sticky="wens")
+        self.__game_frame = None
+        self.__stats_frame = None
         self.__window.columnconfigure(0, weight=1)
-
-        self.__coverFrame = tk.Frame(self.__window, bg='')  # Covers the game frame to block the player from clicking the buttons
+        self.__coverFrame = None  # Covers the game frame to block the player from clicking the buttons
 
         self.__buttons_list = None  # A list to store buttons
         self.__game = None
@@ -35,6 +31,14 @@ class Game:
         self.__firstSafeClick = FirstSafeClick.ACTIVE  # Makes sure that the first click is not a mine
 
     def Create_Game(self, width, height, mines):
+        self.__game_frame = tk.Frame(self.__window, bg="black", width=500, height=500, relief=tk.SUNKEN)
+        self.__game_frame.grid(row=1, column=0)
+
+        self.__stats_frame = tk.Frame(self.__window)
+        self.__stats_frame.grid(row=0, column=0, sticky="wens")
+
+        self.__coverFrame = tk.Frame(self.__window, bg='')
+
         self.__counter_label = tk.Label(self.__stats_frame, bg="black", fg="red", text=f"{self.__time_counter:03}", font=("Arial", 18), width=3)
         self.__counter_label.pack(side=tk.RIGHT, padx=(0, 10))
 
@@ -45,7 +49,7 @@ class Game:
         self.__resetButton = tk.Button(self.__stats_frame, text="O   O\n\\___/", bd=4, bg="yellow")
         self.__resetButton.pack(pady=10)
         self.__resetButton.bind("<Button-1>", lambda event: self.__resetButton.config(text="O   O\n\\___/"))
-        self.__resetButton.bind("<ButtonRelease-1>", self.resetGame)
+        self.__resetButton.bind("<ButtonRelease-1>", lambda event: self.resetGame())
 
         self.__game = MSGame(width, height, mines)
         squares = (width * height)
@@ -58,15 +62,15 @@ class Game:
             button.bind("<Button-1>", lambda event, btn=button: self.holding(btn))
             button.bind("<ButtonRelease-1>", lambda event, btn=button: self.show(btn))
             button.bind("<Button-3>", lambda event, btn=button: self.place_flag(btn))
-            self.__buttons_list[i // height].append(button)
-            button.grid(row=(i // height), column=i % width, pady=1, padx=1)
+            self.__buttons_list[i // max(height, width)].append(button)
+            button.grid(row=(i // max(height, width)), column=i % width, pady=1, padx=1)
 
     def update_counter(self):
         self.__time_counter += 1
         self.__counter_label.config(text=f"{min(self.__time_counter, 999):03}")
         self.__id = self.__window.after(1000, self.update_counter)
 
-    def resetGame(self, event):
+    def resetGame(self):
         self.__coverFrame.grid_forget()
         self.__game.clear_board()
         self.__firstSafeClick = FirstSafeClick.ACTIVE
@@ -75,8 +79,9 @@ class Game:
         # stops and resets the timer
         self.__time_counter = 0
         self.__counter_label.config(text=f"{self.__time_counter:03}")
-        if hasattr(self, "__id"):
+        if (self.__id is not None):
             self.__window.after_cancel(self.__id)
+        self.__id = None
 
         # Reset how many flag left
         self.__flagsLeft = self.__game.mines
@@ -177,3 +182,13 @@ class Game:
                 self.__game.get_board()[row][col].flagState = FlagStatus.ON
                 self.__flagsLeft -= 1
                 self.__flagsLeft_label.config(text=f"{max(self.__flagsLeft, -99):03}")
+
+    def Destroy(self):
+        self.__game_frame.grid_forget()
+        self.__game_frame.destroy()
+
+        self.__stats_frame.grid_forget()
+        self.__stats_frame.destroy()
+
+        self.__coverFrame.grid_forget()
+        self.__coverFrame.destroy()

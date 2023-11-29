@@ -3,12 +3,14 @@ import tkinter as tk
 import tkinter.ttk as ttk
 
 from Game import *
+from MenuBar import *
+
 
 def play():
     start_frame.pack_forget()
     start_frame.destroy()
     g = Game(main_window)
-    g.Create_Game(10, 10, 5)
+    MenuBar(main_window, g)
 
 
 main_window = tk.Tk()

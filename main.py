@@ -16,6 +16,9 @@ def play():
 main_window = tk.Tk()
 main_window.title("Minesweeper")
 
+Icon = tk.PhotoImage(file="Images/gameIcon.gif")
+main_window.iconphoto(True, Icon)
+
 start_frame = tk.Frame(master=main_window, bg="red")
 start_frame.pack(fill=tk.BOTH)
 

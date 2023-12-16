@@ -1,12 +1,13 @@
 import sys
 import tkinter as tk
-import tkinter.ttk as ttk
 
 from Game import *
 from MenuBar import *
 
 main_window = tk.Tk()
 main_window.title("Minesweeper")
+main_window.geometry("+700+350")
+
 main_window.resizable(False, False)
 
 Icon = tk.PhotoImage(file="Images/gameIcon.gif")

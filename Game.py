@@ -1,6 +1,7 @@
 import tkinter as tk
 from MSGame import *
 from enum import Enum
+from BestTimes import *
 
 
 class FirstSafeClick(Enum):
@@ -10,6 +11,7 @@ class FirstSafeClick(Enum):
 
 class Game:
     def __init__(self, window):
+        self.__bestTimes = None
         self.__id = None
         self.__window = window
         self.__game_frame = None
@@ -20,7 +22,7 @@ class Game:
 
         self.__buttons_list = None  # A list to store buttons
         self.__game = None
-        self.__resetButton = None  # A self.__currButton.widget that resets the game
+        self.__resetButton = None  # A button that resets the game
 
         self.__squareCounter = 0  # Counts how many squares have been opened up that are not mines
         self.__counter_label = None
@@ -38,10 +40,12 @@ class Game:
         self.__firstSafeClick = FirstSafeClick.ACTIVE  # Makes sure that the first click is not a mine
 
         self.__currButton = None
+        self.__gameDifficulty = None
 
-    def Create_Game(self, width, height, mines):
-        self.__game_frame = tk.Frame(self.__window, bg="black", width=500, height=500, relief=tk.SUNKEN)
+    def Create_Game(self, width, height, mines, difficulty):
+        self.__gameDifficulty = difficulty
 
+        self.__game_frame = tk.Frame(self.__window, bg="black", relief=tk.SUNKEN)
         self.__game_frame.grid(row=1, column=0)
 
         self.__stats_frame = tk.Frame(self.__window)
@@ -183,11 +187,11 @@ class Game:
                     if (i == row and j == column):
                         continue
 
-                    if (self.__game.get_board()[i][j].has_mine == True and self.__game.get_board()[i][j].flagState == FlagStatus.OFF):
+                    if (self.__game.get_board()[i][j].has_mine is True and self.__game.get_board()[i][j].flagState == FlagStatus.OFF):
                         self.__buttons_list[i][j].config(bg="white", image=self.__minesPics[0])
                         self.__game.get_board()[i][j].status = SquareStatus.OPENED
 
-                    elif (self.__game.get_board()[i][j].has_mine == False and self.__game.get_board()[i][j].flagState == FlagStatus.ON):
+                    elif (self.__game.get_board()[i][j].has_mine is False and self.__game.get_board()[i][j].flagState == FlagStatus.ON):
                         self.__buttons_list[i][j].config(image=self.__minesPics[1])
 
             self.__game.get_board()[row][column].status = SquareStatus.OPENED
@@ -209,14 +213,68 @@ class Game:
                                                          image=self.__numberPics[self.__game.get_board()[i][j].neighbor_mines - 1],
                                                          anchor=tk.CENTER)
                     if (self.__squareCounter == (self.__game.height * self.__game.width) - self.__game.mines):
-                        self.__resetButton.config(image=self.__smileyPics[3])
-                        self.__window.after_cancel(self.__id)
-                        for r in range(self.__game.height):
-                            for c in range(self.__game.width):
-                                if (self.__game.get_board()[r][c].has_mine == True and self.__game.get_board()[r][c].flagState == FlagStatus.OFF):
-                                    self.place_flag(self.__buttons_list[r][c])
-                        self.__coverFrame.grid(row=1, column=0, sticky="nsew")
+                        self.youWin()
                         return
+
+    def youWin(self):
+        self.__resetButton.config(image=self.__smileyPics[3])
+        self.__window.after_cancel(self.__id)
+        for r in range(self.__game.height):
+            for c in range(self.__game.width):
+                if (self.__game.get_board()[r][c].has_mine is True and self.__game.get_board()[r][c].flagState == FlagStatus.OFF):
+                    self.__buttons_list[r][c].config(image=self.__flagImage)
+                    self.__game.get_board()[r][c].flagState = FlagStatus.ON
+                    self.__flagsLeft -= 1
+                    self.__flagsLeft_label.config(text=f"{max(self.__flagsLeft, -99):03}")
+
+        self.__coverFrame.grid(row=1, column=0, sticky="nsew")
+
+        self.__bestTimes = BestTimes(self.__window)
+        if (self.__bestTimes.compare(self.__gameDifficulty, self.__time_counter)):
+            newBestTimeWindow = tk.Toplevel(self.__window, relief=tk.RAISED, bd=2)
+            newBestTimeWindow.overrideredirect(True)
+            self.__window.wm_attributes("-disabled", True)
+
+            # Get window coordinates
+            _, _, win_coords = self.__window.geometry().partition('+')
+            x_str, y_str = win_coords.split('+')
+            x, y = int(x_str), int(y_str)
+
+            newBestTimeWindow.geometry(f"+{x+25}+{y+120}")
+            label = tk.Label(newBestTimeWindow)
+            label.pack(pady=5, padx=15)
+
+            if (self.__gameDifficulty == Difficulty.BEGINNER):
+                label.config(text="You have the fastest time\n  for beginner level.\nPlease enter your name.")
+            elif (self.__gameDifficulty == Difficulty.INTERMEDIATE):
+                label.config(text="You have the fastest time\n  for intermediate level.\nPlease enter your name.")
+            else:
+                label.config(text="You have the fastest time\n  for expert level.\nPlease enter your name.")
+
+            # Register the validation function
+            validate_cmd = newBestTimeWindow.register(self.on_validate)
+
+            # Create an Entry widget with character limit
+            entry = ttk.Entry(newBestTimeWindow, validate="key", validatecommand=(validate_cmd, "%P"), width=20)
+            entry.pack(pady=(40, 5))
+
+            okButton = ttk.Button(newBestTimeWindow, text="OK", width=7, padding=2, command=lambda: self.Close_TopLevel(newBestTimeWindow, entry))
+            okButton.pack(pady=(5, 22))
+
+            self.__window.bind("<Button-1>", lambda event: entry.focus_set())
+
+    @staticmethod
+    def on_validate(P):
+        # P is the value of the entry at the moment of validation
+        return len(P) <= 18
+
+    def Close_TopLevel(self, w, entry):
+        name = entry.get()
+        self.__window.wm_attributes("-disabled", False)
+        w.destroy()
+        self.__bestTimes.setScores(name, self.__time_counter, self.__gameDifficulty)
+        self.__bestTimes.displayBestTimes()
+        self.__window.unbind("<Button-1>")
 
     def place_flag(self, event):
         row = event.widget.grid_info()['row']

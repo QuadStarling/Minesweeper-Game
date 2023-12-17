@@ -14,6 +14,7 @@ class MenuBar:
         self.__window.config(menu=self.__menuBar)
 
         self.__x = tk.IntVar()
+        self.__soundOnOff = tk.IntVar()
 
         self.__gameMenu = tk.Menu(self.__menuBar, tearoff=0, font=("Arial", 10))
         self.__menuBar.add_cascade(label="Game", menu=self.__gameMenu)
@@ -25,7 +26,7 @@ class MenuBar:
         self.__gameMenu.add_radiobutton(label="Expert", variable=self.__x, value=2, command=self.chooseDiff)
         self.__gameMenu.add_separator()
 
-        self.__gameMenu.add_radiobutton(label="Sound")
+        self.__gameMenu.add_checkbutton(label="Sound", variable=self.__soundOnOff, onvalue=1, offvalue=0, command=self.toggle_sound)
         self.__gameMenu.add_separator()
 
         self.__gameMenu.add_command(label="Best Times...", command=self.show_Scores)
@@ -76,3 +77,5 @@ class MenuBar:
         bestTimes = BestTimes(self.__window)
         bestTimes.displayBestTimes()
 
+    def toggle_sound(self):
+        self.__game.setSound_Toggle(self.__soundOnOff.get())

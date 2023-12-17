@@ -2,6 +2,7 @@ import tkinter as tk
 from MSGame import *
 from enum import Enum
 from BestTimes import *
+from pygame import mixer
 
 
 class FirstSafeClick(Enum):
@@ -41,6 +42,10 @@ class Game:
 
         self.__currButton = None
         self.__gameDifficulty = None
+
+        # Initialize the mixer
+        mixer.init()
+        self.__soundOnOff = 0  # When the variable is 0 it means the sound is off
 
     def Create_Game(self, width, height, mines, difficulty):
         self.__gameDifficulty = difficulty
@@ -84,7 +89,14 @@ class Game:
             for j, button in enumerate(row_buttons):
                 button.grid(row=i, column=j, pady=1, padx=1)
 
+    def setSound_Toggle(self, value):
+        if (value == 0):
+            mixer.music.stop()
+        self.__soundOnOff = value
+
     def update_counter(self):
+        if (self.__soundOnOff == 1):
+            mixer.music.play()
         self.__time_counter += 1
         self.__counter_label.config(text=f"{min(self.__time_counter, 999):03}")
         self.__id = self.__window.after(1000, self.update_counter)
@@ -98,6 +110,8 @@ class Game:
         # stops and resets the timer
         self.__time_counter = 0
         self.__counter_label.config(text=f"{self.__time_counter:03}")
+        mixer.music.stop()
+
         if (self.__id is not None):
             self.__window.after_cancel(self.__id)
         self.__id = None
@@ -176,10 +190,15 @@ class Game:
         if (self.__firstSafeClick == FirstSafeClick.ACTIVE):
             self.__game.generate_minefield(row, column)
             self.__game.generate_neighbor_info()
+            mixer.music.load("Sounds/Tick.mp3")
             self.update_counter()
             self.__firstSafeClick = FirstSafeClick.INACTIVE
 
         if (self.__game.get_board()[row][column].has_mine == True):
+            mixer.music.load("Sounds/Lose.mp3")
+            if (self.__soundOnOff == 1):
+                mixer.music.play()
+
             self.__buttons_list[row][column].config(bg="red", image=self.__minesPics[0])
             self.__window.after_cancel(self.__id)
             for i in range(self.__game.height):
@@ -217,6 +236,10 @@ class Game:
                         return
 
     def youWin(self):
+        mixer.music.load("Sounds/Win.mp3")
+        if self.__soundOnOff == 1:
+            mixer.music.play()
+
         self.__resetButton.config(image=self.__smileyPics[3])
         self.__window.after_cancel(self.__id)
         for r in range(self.__game.height):

@@ -1,3 +1,3 @@
-Beginner:       25 seconds     hi
+Beginner:       999 seconds    Anonymous
 Intermediate:   999 seconds    Anonymous
 Expert:         999 seconds    Anonymous

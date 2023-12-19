@@ -16,12 +16,13 @@ class Game:
         self.__id = None
         self.__window = window
         self.__game_frame = None
+        self.__canvas = None
         self.__stats_frame = None
         self.__window.columnconfigure(0, weight=1)
         self.__coverFrame = None  # Covers the game frame to block the player from clicking the buttons
         self.__coverButtonFrame = None
 
-        self.__buttons_list = None  # A list to store buttons
+        self.__tiles_list = None  # A list to store buttons
         self.__game = None
         self.__resetButton = None  # A button that resets the game
 
@@ -50,19 +51,23 @@ class Game:
     def Create_Game(self, width, height, mines, difficulty):
         self.__gameDifficulty = difficulty
 
-        self.__game_frame = tk.Frame(self.__window, bg="black", relief=tk.SUNKEN)
+        # The frame contains the canvas inside it
+        self.__game_frame = tk.Frame(self.__window)
         self.__game_frame.grid(row=1, column=0)
 
-        self.__stats_frame = tk.Frame(self.__window)
+        self.__canvas = tk.Canvas(self.__game_frame, width=width*26 + 1, height=height*26 + 1, relief=tk.SUNKEN, bd=10)
+        self.__canvas.pack()
+
+        self.__stats_frame = tk.Frame(self.__window, bd=10, relief=tk.SUNKEN)
         self.__stats_frame.grid(row=0, column=0, sticky="wens")
 
         self.__coverFrame = tk.Frame(self.__window, bg='')
 
-        self.__counter_label = tk.Label(self.__stats_frame, bg="black", fg="red", text=f"{self.__time_counter:03}", font=("Arial", 18), width=3)
+        self.__counter_label = tk.Label(self.__stats_frame, bg="black", fg="red", text=f"{self.__time_counter:03}", font=("Arial", 18), width=3, relief=tk.SUNKEN, bd=3)
         self.__counter_label.pack(side=tk.RIGHT, padx=(0, 10))
 
         self.__flagsLeft = mines
-        self.__flagsLeft_label = tk.Label(self.__stats_frame, bg="black", fg="red", text=f"{min(self.__flagsLeft, 999):03}", font=("Arial", 18), width=3)
+        self.__flagsLeft_label = tk.Label(self.__stats_frame, bg="black", fg="red", text=f"{min(self.__flagsLeft, 999):03}", font=("Arial", 18), width=3, relief=tk.SUNKEN, bd=3)
         self.__flagsLeft_label.pack(side=tk.LEFT, padx=(10, 0))
 
         self.__resetButton = tk.Button(self.__stats_frame, image=self.__smileyPics[0])
@@ -71,28 +76,38 @@ class Game:
         self.__resetButton.bind("<ButtonRelease-1>", lambda event: self.resetGame())
 
         self.__game = MSGame(width, height, mines)
-        squares = (width * height)
-        self.__buttons_list = [[] for _ in range(height)]
+
+        # Create a 2D array to store rectangle IDs
+        self.__tiles_list = [[] for _ in range(height)]
+
         self.__pixel = tk.PhotoImage(width=1, height=1)
 
-        # places and creates the buttons on the frame
-        # while also storing them in the list
-        for i in range(squares):
-            button = tk.Label(self.__game_frame, image=self.__pixel, bg="lightgray", width=20, height=20, relief=tk.FLAT)
-            button.bind("<Button-1>", self.holdingClick)
-            button.bind("<B1-Motion>", self.holdingMotion)
-            button.bind("<ButtonRelease-1>", self.show)
-            button.bind("<Button-3>", self.place_flag)
-            self.__buttons_list[i // max(height, width)].append(button)
+        # Bind mouse events to the Canvas
+        self.__canvas.bind("<Button-1>", self.holdingClick)
+        self.__canvas.bind("<B1-Motion>", self.holdingMotion)
+        self.__canvas.bind("<ButtonRelease-1>", self.show)
+        self.__canvas.bind("<Button-3>", self.place_flag)
 
-        for i, row_buttons in enumerate(self.__buttons_list):
-            for j, button in enumerate(row_buttons):
-                button.grid(row=i, column=j, pady=1, padx=1)
+        for i in range(height):
+            for j in range(width):
+                x1, y1 = j * 26 + 12, i * 26 + 12
+                x2, y2 = x1 + 26, y1 + 26
+                rect_id = self.__canvas.create_rectangle(x1, y1, x2, y2, fill="lightgray", outline="black")
+                self.__tiles_list[i].append(rect_id)
 
     def setSound_Toggle(self, value):
         if (value == 0):
             mixer.music.stop()
         self.__soundOnOff = value
+
+    @staticmethod
+    def getRowAndColumn(event):
+        return (event.y - 12) // 26, (event.x - 12) // 26
+
+    def get_coordinates(self, button):
+        coordinates = self.__canvas.coords(button)
+        x, y = coordinates[0], coordinates[1]
+        return round(x), round(y)
 
     def update_counter(self):
         if (self.__soundOnOff == 1):
@@ -124,55 +139,53 @@ class Game:
             for j in range(self.__game.width):
                 if (self.__game.get_board()[i][j].flagState == FlagStatus.ON):
                     self.__game.get_board()[i][j].flagState = FlagStatus.OFF
-                    self.__buttons_list[i][j].bind("<ButtonRelease-1>",
-                                                   lambda e, btn=self.__buttons_list[i][j]: self.show(btn))
-                    self.__buttons_list[i][j].config(bg="lightgray", image=self.__pixel, bd=2, width=20, height=20, relief=tk.FLAT)
+                    self.__canvas.itemconfig(self.__tiles_list[i][j], fill="lightgray")
+                    self.__canvas.delete(f"flag_image{i},{j}")
 
                 if (self.__game.get_board()[i][j].status == SquareStatus.OPENED):
                     self.__game.get_board()[i][j].status = SquareStatus.HIDDEN
-                    self.__buttons_list[i][j].config(bg="lightgray", image=self.__pixel, bd=2, width=20, height=20, relief=tk.FLAT)
+                    self.__canvas.itemconfig(self.__tiles_list[i][j], fill="lightgray")
+                    self.__canvas.delete(f"image{i},{j}")
 
     def holdingClick(self, event):
         self.__resetButton.config(image=self.__smileyPics[1])
-        self.__currButton = event.widget
-        row = self.__currButton.grid_info()['row']
-        col = self.__currButton.grid_info()['column']
 
+        # Check if the mouse is outside the board
+        if (event.x < 12 or event.x >= self.__canvas.winfo_reqwidth() - 13 or event.y < 12 or event.y >= self.__canvas.winfo_reqheight() - 13):
+            return
+
+        row, col = self.getRowAndColumn(event)  # Get row and column for the button clicked
+        button = self.__tiles_list[row][col]
+        self.__currButton = button
         if (self.__game.get_board()[row][col].flagState == FlagStatus.OFF):
-            self.__currButton.config(background="white")
+            self.__canvas.itemconfig(button, fill="white")
 
     def holdingMotion(self, event):
         row, col = None, None
-        x, y = event.x_root, event.y_root
-        button = self.__window.winfo_containing(x, y)
 
         if (self.__currButton != None):
-            row = self.__currButton.grid_info()['row']
-            col = self.__currButton.grid_info()['column']
+            x2, y2 = self.get_coordinates(self.__currButton)
+            row, col = (y2 - 12) // 26, (x2 - 12) // 26
 
-        # Get the coordinates of the frame
-        frame_x, frame_y, frame_width, frame_height = self.__game_frame.winfo_rootx(), self.__game_frame.winfo_rooty(), self.__game_frame.winfo_width(), self.__game_frame.winfo_height()
-
-        # Check if the mouse is outside the frame
-        if (x < frame_x or x > frame_x + frame_width or y < frame_y or y > frame_y + frame_height):
+        # Check if the mouse is outside the board
+        if (event.x < 12 or event.x >= self.__canvas.winfo_reqwidth()-13 or event.y < 12 or event.y >= self.__canvas.winfo_reqheight() - 13):
             if (self.__currButton != None and self.__game.get_board()[row][col].status == SquareStatus.HIDDEN and self.__game.get_board()[row][col].flagState == FlagStatus.OFF):
-                self.__currButton.config(bg="lightgray", image=self.__pixel, bd=2, width=20, height=20, relief=tk.FLAT)
+                self.__canvas.itemconfig(self.__currButton, fill="lightgray")
                 self.__currButton = None
             return
 
-        if (isinstance(button, tk.Frame) or self.__currButton == button or button == None):
-            return
+        x, y = self.getRowAndColumn(event)  # Get row and column for the button clicked
+        button = self.__tiles_list[x][y]
 
-        row2 = button.grid_info()['row']
-        col2 = button.grid_info()['column']
+        if (self.__currButton == button):
+            return
 
         if (self.__currButton != None):
             if (self.__game.get_board()[row][col].status == SquareStatus.HIDDEN and self.__game.get_board()[row][col].flagState == FlagStatus.OFF):
-                if (isinstance(self.__currButton, tk.Label) and self.__currButton != button and self.__currButton is not None):
-                    self.__currButton.config(bg="lightgray", image=self.__pixel, bd=2, width=20, height=20, relief=tk.FLAT)
+                self.__canvas.itemconfig(self.__currButton, fill="lightgray")
 
-        if (self.__game.get_board()[row2][col2].flagState == FlagStatus.OFF):
-            button.config(background="white")
+        if (self.__game.get_board()[x][y].flagState == FlagStatus.OFF):
+            self.__canvas.itemconfig(button, fill="white")
         self.__currButton = button
 
     def show(self, event):
@@ -181,8 +194,7 @@ class Game:
         if (self.__currButton == None):
             return
 
-        row = self.__currButton.grid_info()['row']
-        column = self.__currButton.grid_info()['column']
+        row, column = self.getRowAndColumn(event)
         self.__currButton = None
         if (self.__game.get_board()[row][column].status == SquareStatus.OPENED or self.__game.get_board()[row][column].flagState == FlagStatus.ON):
             return
@@ -199,19 +211,26 @@ class Game:
             if (self.__soundOnOff == 1):
                 mixer.music.play()
 
-            self.__buttons_list[row][column].config(bg="red", image=self.__minesPics[0])
+            self.__canvas.itemconfig(self.__tiles_list[row][column], fill="red")
+            x, y = self.get_coordinates(self.__tiles_list[row][column])
+            self.__canvas.create_image(x + 13, y + 13, image=self.__minesPics[0], tags=f"image{row},{column}")
             self.__window.after_cancel(self.__id)
             for i in range(self.__game.height):
                 for j in range(self.__game.width):
                     if (i == row and j == column):
                         continue
 
+                    x, y = self.get_coordinates(self.__tiles_list[i][j])
                     if (self.__game.get_board()[i][j].has_mine is True and self.__game.get_board()[i][j].flagState == FlagStatus.OFF):
-                        self.__buttons_list[i][j].config(bg="white", image=self.__minesPics[0])
+                        self.__canvas.itemconfig(self.__tiles_list[i][j], fill="white")
+                        self.__canvas.create_image(x + 13, y + 13, image=self.__minesPics[0], tags=f"image{i},{j}")
                         self.__game.get_board()[i][j].status = SquareStatus.OPENED
 
                     elif (self.__game.get_board()[i][j].has_mine is False and self.__game.get_board()[i][j].flagState == FlagStatus.ON):
-                        self.__buttons_list[i][j].config(image=self.__minesPics[1])
+                        self.__canvas.delete(f"flag_image{i},{j}")
+                        self.__game.get_board()[i][j].flagState = FlagStatus.OFF
+                        self.__game.get_board()[i][j].status = SquareStatus.OPENED
+                        self.__canvas.create_image(x + 13, y + 13, image=self.__minesPics[1], tags=f"image{i},{j}")
 
             self.__game.get_board()[row][column].status = SquareStatus.OPENED
             self.__resetButton.config(image=self.__smileyPics[2])
@@ -225,12 +244,13 @@ class Game:
                     self.__game.get_board()[i][j].status = SquareStatus.OPENED
                     if (self.__game.get_board()[i][j].neighbor_mines == 0):
                         self.__squareCounter += 1
-                        self.__buttons_list[i][j].config(bg="white")
+                        self.__canvas.itemconfig(self.__tiles_list[i][j], fill="white")
                     else:
                         self.__squareCounter += 1
-                        self.__buttons_list[i][j].config(bg="white",
-                                                         image=self.__numberPics[self.__game.get_board()[i][j].neighbor_mines - 1],
-                                                         anchor=tk.CENTER)
+                        self.__canvas.itemconfig(self.__tiles_list[i][j], fill="white")
+                        x, y = self.get_coordinates(self.__tiles_list[i][j])
+                        self.__canvas.create_image(x + 13, y + 13, image=self.__numberPics[self.__game.get_board()[i][j].neighbor_mines - 1], tags=f"image{i},{j}")
+
                     if (self.__squareCounter == (self.__game.height * self.__game.width) - self.__game.mines):
                         self.youWin()
                         return
@@ -245,12 +265,9 @@ class Game:
         for r in range(self.__game.height):
             for c in range(self.__game.width):
                 if (self.__game.get_board()[r][c].has_mine is True and self.__game.get_board()[r][c].flagState == FlagStatus.OFF):
-                    self.__buttons_list[r][c].config(image=self.__flagImage)
-                    self.__game.get_board()[r][c].flagState = FlagStatus.ON
-                    self.__flagsLeft -= 1
-                    self.__flagsLeft_label.config(text=f"{max(self.__flagsLeft, -99):03}")
+                    self.__tiles_list[r][c].event_generate("<Button-3>")
 
-        self.__coverFrame.grid(row=1, column=0, sticky="nsew")
+        self.__coverFrame.grid(row=1, column=0, sticky="nsew")  # Prevents the player from the clicking the game
 
         self.__bestTimes = BestTimes(self.__window)
         if (self.__bestTimes.compare(self.__gameDifficulty, self.__time_counter)):
@@ -300,16 +317,20 @@ class Game:
         self.__window.unbind("<Button-1>")
 
     def place_flag(self, event):
-        row = event.widget.grid_info()['row']
-        col = event.widget.grid_info()['column']
+        # Check if the mouse is outside the board
+        if event.x < 12 or event.x >= self.__canvas.winfo_reqwidth() - 13 or event.y < 12 or event.y >= self.__canvas.winfo_reqheight() - 13:
+            return
+
+        row, col = self.getRowAndColumn(event)
         if (self.__game.get_board()[row][col].status == SquareStatus.HIDDEN):
             if (self.__game.get_board()[row][col].flagState == FlagStatus.ON):
-                event.widget.config(bg="lightgray", image=self.__pixel)
+                self.__canvas.delete(f"flag_image{row},{col}")
                 self.__game.get_board()[row][col].flagState = FlagStatus.OFF
                 self.__flagsLeft += 1
                 self.__flagsLeft_label.config(text=f"{self.__flagsLeft:03}")
             else:
-                event.widget.config(image=self.__flagImage)
+                x, y = self.get_coordinates(self.__tiles_list[row][col])
+                self.__canvas.create_image(x + 13, y + 13, image=self.__flagImage, tags=f"flag_image{row},{col}")
                 self.__game.get_board()[row][col].flagState = FlagStatus.ON
                 self.__flagsLeft -= 1
                 self.__flagsLeft_label.config(text=f"{max(self.__flagsLeft, -99):03}")

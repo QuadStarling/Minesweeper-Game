@@ -1,6 +1,3 @@
-import sys
-import tkinter as tk
-
 from Game import *
 from MenuBar import *
 

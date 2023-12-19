@@ -2,7 +2,6 @@ import sys
 from tkinter import messagebox
 from BestTimes import *
 import tkinter as tk
-from tkinter import ttk
 
 
 class MenuBar:

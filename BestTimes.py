@@ -13,10 +13,10 @@ class BestTimes:
     def setScores(self, name, time, difficulty):
         scores = self.getDataFromFile()
 
-        if (difficulty == Difficulty.BEGINNER):
+        if difficulty == Difficulty.BEGINNER:
             scores[0] = f"{'Beginner:':<15} {str(time) + ' seconds':<14} {name}\n"
 
-        elif (difficulty == Difficulty.INTERMEDIATE):
+        elif difficulty == Difficulty.INTERMEDIATE:
             scores[1] = f"{'Intermediate:':<15} {str(time) + ' seconds':<14} {name}\n"
 
         else:
@@ -39,19 +39,19 @@ class BestTimes:
     def compare(self, difficulty, time):
         scores = self.getDataFromFile()
 
-        if (difficulty == Difficulty.BEGINNER):
-            if (int(scores[0].split()[1]) > time):
+        if difficulty == Difficulty.BEGINNER:
+            if int(scores[0].split()[1]) > time:
                 return True
             else:
                 return False
 
-        elif (difficulty == Difficulty.INTERMEDIATE):
-            if (int(scores[1].split()[1]) > time):
+        elif difficulty == Difficulty.INTERMEDIATE:
+            if int(scores[1].split()[1]) > time:
                 return True
             else:
                 return False
         else:
-            if (int(scores[2].split()[1]) > time):
+            if int(scores[2].split()[1]) > time:
                 return True
             else:
                 return False

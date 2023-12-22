@@ -7,6 +7,9 @@ from enum import Enum
 from BestTimes import *
 from pygame import mixer
 
+import threading
+import time
+
 
 class FirstSafeClick(Enum):
     ACTIVE = 0
@@ -47,6 +50,8 @@ class Game:
 
         self.__currButton = None
         self.__gameDifficulty = None
+
+        self.__prevWindowState = None
 
         # Initialize the mixer
         mixer.init()
@@ -127,9 +132,20 @@ class Game:
         else:
             self.__resetButton.config(image=self.__smileyPics[0])
 
+    def add_cover(self):
+        time.sleep(0.1)
+        self.__coverFrame.grid(row=1, column=0, sticky="nsew")
+
     def focusOut(self, event):
+        # Adds a cover after you minimised and then maximised the game
+        if self.__window.state() == "iconic":
+            self.__coverFrame.grid_forget()
+        elif self.__prevWindowState == "iconic":
+            threading.Thread(target=self.add_cover).start()  # used threading to solve the cover frame bug not being transparent after you maximise the game
+
         self.__FocusCoverFrame.grid(row=1, column=0, sticky="news")
         self.__coverButtonFrame.place(in_=self.__resetButton, relwidth=1, relheight=1)
+        self.__prevWindowState = self.__window.state()
 
     def focusIn(self, event):
         self.__FocusCoverFrame.grid_forget()

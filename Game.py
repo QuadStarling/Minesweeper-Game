@@ -1,4 +1,7 @@
 import tkinter as tk
+
+import winsound
+
 from MSGame import *
 from enum import Enum
 from BestTimes import *
@@ -20,11 +23,13 @@ class Game:
         self.__stats_frame = None
         self.__window.columnconfigure(0, weight=1)
         self.__coverFrame = None  # Covers the game frame to block the player from clicking the buttons
-        self.__coverButtonFrame = None
+        self.__FocusCoverFrame = None  # Used when you focus out of the game and in
+        self.__coverButtonFrame = None  # Covers the resetButton when the window is out of focus
 
         self.__tiles_list = None  # A list to store buttons
         self.__game = None
         self.__resetButton = None  # A button that resets the game
+        self.__resButtCurrImage = None  # Stores the current image of the reset image
 
         self.__squareCounter = 0  # Counts how many squares have been opened up that are not mines
         self.__counter_label = None
@@ -32,7 +37,6 @@ class Game:
         self.__flagsLeft = 0
         self.__flagsLeft_label = None
         self.__flagImage = tk.PhotoImage(file="Images/flag.gif")
-        self.__pixel = None
 
         self.__smileyPics = [tk.PhotoImage(file="Images/smileyNormal.gif"), tk.PhotoImage(file="Images/smileyNervous.gif"), tk.PhotoImage(file="Images/smileyDead.gif"), tk.PhotoImage(file="Images/smileyCool.gif")]
         self.__minesPics = [tk.PhotoImage(file="Images/mine.gif"), tk.PhotoImage(file="Images/notMine.gif")]
@@ -50,6 +54,8 @@ class Game:
 
     def Create_Game(self, width, height, mines, difficulty):
         self.__gameDifficulty = difficulty
+        with open("Data/saveLastDifficulty.txt", 'w') as file:
+            file.write(difficulty.name)
 
         # The frame contains the canvas inside it
         self.__game_frame = tk.Frame(self.__window)
@@ -62,6 +68,8 @@ class Game:
         self.__stats_frame.grid(row=0, column=0, sticky="wens")
 
         self.__coverFrame = tk.Frame(self.__window, bg='')
+        self.__FocusCoverFrame = tk.Frame(self.__window, bg='')
+        self.__coverButtonFrame = tk.Frame(self.__window, bg='')
 
         self.__counter_label = tk.Label(self.__stats_frame, bg="black", fg="red", text=f"{self.__time_counter:03}", font=("Arial", 18), width=3, relief=tk.SUNKEN, bd=3)
         self.__counter_label.pack(side=tk.RIGHT, padx=(0, 10))
@@ -72,15 +80,17 @@ class Game:
 
         self.__resetButton = tk.Button(self.__stats_frame, image=self.__smileyPics[0])
         self.__resetButton.pack(pady=10)
-        self.__resetButton.bind("<Button-1>", lambda event: self.__resetButton.config(image=self.__smileyPics[0]))
-        self.__resetButton.bind("<ButtonRelease-1>", lambda event: self.resetGame())
+        self.__resetButton.bind("<Button-1>", self.holdingResetButton)
+        self.__resetButton.bind("<B1-Motion>", self.holdingResetButtonMotion)
+        self.__resetButton.bind("<ButtonRelease-1>", self.handle_button_click)
 
         self.__game = MSGame(width, height, mines)
 
         # Create a 2D array to store rectangle IDs
         self.__tiles_list = [[] for _ in range(height)]
 
-        self.__pixel = tk.PhotoImage(width=1, height=1)
+        self.__window.bind("<FocusOut>", self.focusOut)
+        self.__window.bind("<FocusIn>", self.focusIn)
 
         # Bind mouse events to the Canvas
         self.__canvas.bind("<Button-1>", self.holdingClick)
@@ -95,8 +105,53 @@ class Game:
                 rect_id = self.__canvas.create_rectangle(x1, y1, x2, y2, fill="lightgray", outline="black")
                 self.__tiles_list[i].append(rect_id)
 
+    def handle_button_click(self, event):
+        widget = self.__window.winfo_containing(event.x_root, event.y_root)
+        if isinstance(widget, tk.Button):
+            self.resetGame()
+
+        elif self.__firstSafeClick == FirstSafeClick.INACTIVE:
+            self.update_counter()
+
+    def holdingResetButton(self, event):
+        self.__resButtCurrImage = self.__resetButton['image']
+        self.__resetButton.config(image=self.__smileyPics[0])
+        if self.__id is not None:
+            self.__window.after_cancel(self.__id)
+        self.__id = None
+
+    def holdingResetButtonMotion(self, event):
+        widget = self.__window.winfo_containing(event.x_root, event.y_root)
+        if not isinstance(widget, tk.Button):
+            self.__resetButton.config(image=self.__resButtCurrImage)
+        else:
+            self.__resetButton.config(image=self.__smileyPics[0])
+
+    def focusOut(self, event):
+        self.__FocusCoverFrame.grid(row=1, column=0, sticky="news")
+        self.__coverButtonFrame.place(in_=self.__resetButton, relwidth=1, relheight=1)
+
+    def focusIn(self, event):
+        self.__FocusCoverFrame.grid_forget()
+        self.__coverButtonFrame.place_forget()
+
+    @property
+    def Difficulty(self):
+        value = self.__gameDifficulty.value
+        if value is not None:
+            return value
+
+        with open("Data/customDifficulty.txt", 'r') as file:
+            data = file.read()
+
+        return [int(item) for item in data.split(',')]
+
+    @Difficulty.setter
+    def Difficulty(self, value):
+        self.__gameDifficulty = value
+
     def setSound_Toggle(self, value):
-        if (value == 0):
+        if value == 0:
             mixer.music.stop()
         self.__soundOnOff = value
 
@@ -110,13 +165,15 @@ class Game:
         return round(x), round(y)
 
     def update_counter(self):
-        if (self.__soundOnOff == 1):
+        if self.__soundOnOff == 1:
             mixer.music.play()
         self.__time_counter += 1
         self.__counter_label.config(text=f"{min(self.__time_counter, 999):03}")
         self.__id = self.__window.after(1000, self.update_counter)
 
     def resetGame(self):
+        self.__resetButton.config(image=self.__smileyPics[0])
+
         self.__coverFrame.grid_forget()
         self.__game.clear_board()
         self.__firstSafeClick = FirstSafeClick.ACTIVE
@@ -127,7 +184,7 @@ class Game:
         self.__counter_label.config(text=f"{self.__time_counter:03}")
         mixer.music.stop()
 
-        if (self.__id is not None):
+        if self.__id is not None:
             self.__window.after_cancel(self.__id)
         self.__id = None
 
@@ -137,12 +194,12 @@ class Game:
 
         for i in range(self.__game.height):
             for j in range(self.__game.width):
-                if (self.__game.get_board()[i][j].flagState == FlagStatus.ON):
+                if self.__game.get_board()[i][j].flagState == FlagStatus.ON:
                     self.__game.get_board()[i][j].flagState = FlagStatus.OFF
                     self.__canvas.itemconfig(self.__tiles_list[i][j], fill="lightgray")
                     self.__canvas.delete(f"flag_image{i},{j}")
 
-                if (self.__game.get_board()[i][j].status == SquareStatus.OPENED):
+                elif self.__game.get_board()[i][j].status == SquareStatus.OPENED:
                     self.__game.get_board()[i][j].status = SquareStatus.HIDDEN
                     self.__canvas.itemconfig(self.__tiles_list[i][j], fill="lightgray")
                     self.__canvas.delete(f"image{i},{j}")
@@ -151,25 +208,25 @@ class Game:
         self.__resetButton.config(image=self.__smileyPics[1])
 
         # Check if the mouse is outside the board
-        if (event.x < 12 or event.x >= self.__canvas.winfo_reqwidth() - 13 or event.y < 12 or event.y >= self.__canvas.winfo_reqheight() - 13):
+        if event.x < 12 or event.x >= self.__canvas.winfo_reqwidth() - 13 or event.y < 12 or event.y >= self.__canvas.winfo_reqheight() - 13:
             return
 
         row, col = self.getRowAndColumn(event)  # Get row and column for the button clicked
         button = self.__tiles_list[row][col]
         self.__currButton = button
-        if (self.__game.get_board()[row][col].flagState == FlagStatus.OFF):
+        if self.__game.get_board()[row][col].flagState == FlagStatus.OFF:
             self.__canvas.itemconfig(button, fill="white")
 
     def holdingMotion(self, event):
         row, col = None, None
 
-        if (self.__currButton != None):
+        if self.__currButton is not None:
             x2, y2 = self.get_coordinates(self.__currButton)
             row, col = (y2 - 12) // 26, (x2 - 12) // 26
 
         # Check if the mouse is outside the board
-        if (event.x < 12 or event.x >= self.__canvas.winfo_reqwidth()-13 or event.y < 12 or event.y >= self.__canvas.winfo_reqheight() - 13):
-            if (self.__currButton != None and self.__game.get_board()[row][col].status == SquareStatus.HIDDEN and self.__game.get_board()[row][col].flagState == FlagStatus.OFF):
+        if event.x < 12 or event.x >= self.__canvas.winfo_reqwidth()-13 or event.y < 12 or event.y >= self.__canvas.winfo_reqheight() - 13:
+            if self.__currButton is not None and self.__game.get_board()[row][col].status == SquareStatus.HIDDEN and self.__game.get_board()[row][col].flagState == FlagStatus.OFF:
                 self.__canvas.itemconfig(self.__currButton, fill="lightgray")
                 self.__currButton = None
             return
@@ -177,38 +234,46 @@ class Game:
         x, y = self.getRowAndColumn(event)  # Get row and column for the button clicked
         button = self.__tiles_list[x][y]
 
-        if (self.__currButton == button):
+        if self.__currButton == button:
             return
 
-        if (self.__currButton != None):
-            if (self.__game.get_board()[row][col].status == SquareStatus.HIDDEN and self.__game.get_board()[row][col].flagState == FlagStatus.OFF):
+        if self.__currButton is not None:
+            if self.__game.get_board()[row][col].status == SquareStatus.HIDDEN and self.__game.get_board()[row][col].flagState == FlagStatus.OFF:
                 self.__canvas.itemconfig(self.__currButton, fill="lightgray")
 
-        if (self.__game.get_board()[x][y].flagState == FlagStatus.OFF):
+        if self.__game.get_board()[x][y].flagState == FlagStatus.OFF:
             self.__canvas.itemconfig(button, fill="white")
         self.__currButton = button
 
     def show(self, event):
         self.__resetButton.config(image=self.__smileyPics[0])
 
-        if (self.__currButton == None):
+        if self.__currButton is None:
             return
 
         row, column = self.getRowAndColumn(event)
         self.__currButton = None
-        if (self.__game.get_board()[row][column].status == SquareStatus.OPENED or self.__game.get_board()[row][column].flagState == FlagStatus.ON):
+        if (
+            row < 0 or
+            column < 0 or
+            row >= self.__game.height or
+            column >= self.__game.width or
+            self.__game.get_board()[row][column].status == SquareStatus.OPENED or
+            self.__game.get_board()[row][column].flagState == FlagStatus.ON
+        ):
             return
 
-        if (self.__firstSafeClick == FirstSafeClick.ACTIVE):
+        if self.__firstSafeClick == FirstSafeClick.ACTIVE:
             self.__game.generate_minefield(row, column)
             self.__game.generate_neighbor_info()
             mixer.music.load("Sounds/Tick.mp3")
             self.update_counter()
             self.__firstSafeClick = FirstSafeClick.INACTIVE
 
-        if (self.__game.get_board()[row][column].has_mine == True):
+        if self.__game.get_board()[row][column].has_mine:
+            self.__firstSafeClick = FirstSafeClick.ACTIVE
             mixer.music.load("Sounds/Lose.mp3")
-            if (self.__soundOnOff == 1):
+            if self.__soundOnOff == 1:
                 mixer.music.play()
 
             self.__canvas.itemconfig(self.__tiles_list[row][column], fill="red")
@@ -217,16 +282,16 @@ class Game:
             self.__window.after_cancel(self.__id)
             for i in range(self.__game.height):
                 for j in range(self.__game.width):
-                    if (i == row and j == column):
+                    if i == row and j == column:
                         continue
 
                     x, y = self.get_coordinates(self.__tiles_list[i][j])
-                    if (self.__game.get_board()[i][j].has_mine is True and self.__game.get_board()[i][j].flagState == FlagStatus.OFF):
+                    if self.__game.get_board()[i][j].has_mine is True and self.__game.get_board()[i][j].flagState == FlagStatus.OFF:
                         self.__canvas.itemconfig(self.__tiles_list[i][j], fill="white")
                         self.__canvas.create_image(x + 13, y + 13, image=self.__minesPics[0], tags=f"image{i},{j}")
                         self.__game.get_board()[i][j].status = SquareStatus.OPENED
 
-                    elif (self.__game.get_board()[i][j].has_mine is False and self.__game.get_board()[i][j].flagState == FlagStatus.ON):
+                    elif self.__game.get_board()[i][j].has_mine is False and self.__game.get_board()[i][j].flagState == FlagStatus.ON:
                         self.__canvas.delete(f"flag_image{i},{j}")
                         self.__game.get_board()[i][j].flagState = FlagStatus.OFF
                         self.__game.get_board()[i][j].status = SquareStatus.OPENED
@@ -240,9 +305,9 @@ class Game:
         self.__game.update_board(row, column)
         for i in range(self.__game.height):
             for j in range(self.__game.width):
-                if (self.__game.get_board()[i][j].status == SquareStatus.PENDING):
+                if self.__game.get_board()[i][j].status == SquareStatus.PENDING:
                     self.__game.get_board()[i][j].status = SquareStatus.OPENED
-                    if (self.__game.get_board()[i][j].neighbor_mines == 0):
+                    if self.__game.get_board()[i][j].neighbor_mines == 0:
                         self.__squareCounter += 1
                         self.__canvas.itemconfig(self.__tiles_list[i][j], fill="white")
                     else:
@@ -251,11 +316,12 @@ class Game:
                         x, y = self.get_coordinates(self.__tiles_list[i][j])
                         self.__canvas.create_image(x + 13, y + 13, image=self.__numberPics[self.__game.get_board()[i][j].neighbor_mines - 1], tags=f"image{i},{j}")
 
-                    if (self.__squareCounter == (self.__game.height * self.__game.width) - self.__game.mines):
+                    if self.__squareCounter == (self.__game.height * self.__game.width) - self.__game.mines:
                         self.youWin()
                         return
 
     def youWin(self):
+        self.__firstSafeClick = FirstSafeClick.ACTIVE
         mixer.music.load("Sounds/Win.mp3")
         if self.__soundOnOff == 1:
             mixer.music.play()
@@ -264,29 +330,36 @@ class Game:
         self.__window.after_cancel(self.__id)
         for r in range(self.__game.height):
             for c in range(self.__game.width):
-                if (self.__game.get_board()[r][c].has_mine is True and self.__game.get_board()[r][c].flagState == FlagStatus.OFF):
-                    self.__tiles_list[r][c].event_generate("<Button-3>")
+                if self.__game.get_board()[r][c].has_mine is True and self.__game.get_board()[r][c].flagState == FlagStatus.OFF:
+                    x, y = self.get_coordinates(self.__tiles_list[r][c])
+                    self.__canvas.create_image(x + 13, y + 13, image=self.__flagImage, tags=f"flag_image{r},{c}")
+                    self.__game.get_board()[r][c].flagState = FlagStatus.ON
+                    self.__flagsLeft -= 1
+                    self.__flagsLeft_label.config(text=f"{max(self.__flagsLeft, -99):03}")
 
         self.__coverFrame.grid(row=1, column=0, sticky="nsew")  # Prevents the player from the clicking the game
 
         self.__bestTimes = BestTimes(self.__window)
-        if (self.__bestTimes.compare(self.__gameDifficulty, self.__time_counter)):
+        if self.__bestTimes.compare(self.__gameDifficulty, self.__time_counter) and self.__gameDifficulty != Difficulty.Custom:
             newBestTimeWindow = tk.Toplevel(self.__window, relief=tk.RAISED, bd=2)
+            newBestTimeWindow.attributes("-topmost", True)
             newBestTimeWindow.overrideredirect(True)
             self.__window.wm_attributes("-disabled", True)
 
             # Get window coordinates
-            _, _, win_coords = self.__window.geometry().partition('+')
+            geo, _, win_coords = self.__window.geometry().partition('+')
             x_str, y_str = win_coords.split('+')
             x, y = int(x_str), int(y_str)
 
-            newBestTimeWindow.geometry(f"+{x+25}+{y+120}")
+            w, _, h = geo.partition('x')
+            wid, hei = int(w)//2 - 75, int(h)//2 - 25
+            newBestTimeWindow.geometry(f"+{x+wid}+{y+hei}")
             label = tk.Label(newBestTimeWindow)
             label.pack(pady=5, padx=15)
 
-            if (self.__gameDifficulty == Difficulty.BEGINNER):
+            if self.__gameDifficulty == Difficulty.BEGINNER:
                 label.config(text="You have the fastest time\n  for beginner level.\nPlease enter your name.")
-            elif (self.__gameDifficulty == Difficulty.INTERMEDIATE):
+            elif self.__gameDifficulty == Difficulty.INTERMEDIATE:
                 label.config(text="You have the fastest time\n  for intermediate level.\nPlease enter your name.")
             else:
                 label.config(text="You have the fastest time\n  for expert level.\nPlease enter your name.")
@@ -301,10 +374,10 @@ class Game:
             okButton = ttk.Button(newBestTimeWindow, text="OK", width=7, padding=2, command=lambda: self.Close_TopLevel(newBestTimeWindow, entry))
             okButton.pack(pady=(5, 22))
 
-            self.__window.bind("<Button-1>", lambda event: entry.focus_set())
-
     @staticmethod
     def on_validate(P):
+        if len(P) > 18:
+            winsound.MessageBeep(1000)
         # P is the value of the entry at the moment of validation
         return len(P) <= 18
 
@@ -322,8 +395,8 @@ class Game:
             return
 
         row, col = self.getRowAndColumn(event)
-        if (self.__game.get_board()[row][col].status == SquareStatus.HIDDEN):
-            if (self.__game.get_board()[row][col].flagState == FlagStatus.ON):
+        if self.__game.get_board()[row][col].status == SquareStatus.HIDDEN:
+            if self.__game.get_board()[row][col].flagState == FlagStatus.ON:
                 self.__canvas.delete(f"flag_image{row},{col}")
                 self.__game.get_board()[row][col].flagState = FlagStatus.OFF
                 self.__flagsLeft += 1

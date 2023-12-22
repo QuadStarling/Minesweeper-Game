@@ -3,7 +3,7 @@ from MenuBar import *
 
 main_window = tk.Tk()
 main_window.title("Minesweeper")
-main_window.geometry("+700+350")
+main_window.geometry("+700+220")
 
 main_window.resizable(False, False)
 

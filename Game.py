@@ -52,6 +52,7 @@ class Game:
         self.__gameDifficulty = None
 
         self.__prevWindowState = None
+        self.__finished = False  # False if game is still ongoing, True if you lost or won
 
         # Initialize the mixer
         mixer.init()
@@ -137,11 +138,12 @@ class Game:
         self.__coverFrame.grid(row=1, column=0, sticky="nsew")
 
     def focusOut(self, event):
-        # Adds a cover after you minimised and then maximised the game
-        if self.__window.state() == "iconic":
-            self.__coverFrame.grid_forget()
-        elif self.__prevWindowState == "iconic":
-            threading.Thread(target=self.add_cover).start()  # used threading to solve the cover frame bug not being transparent after you maximise the game
+        if self.__finished:
+            # Adds a cover after you minimised and then maximised the game
+            if self.__window.state() == "iconic":
+                self.__coverFrame.grid_forget()
+            elif self.__prevWindowState == "iconic":
+                threading.Thread(target=self.add_cover).start()  # used threading to solve the cover frame bug not being transparent after you maximise the game
 
         self.__FocusCoverFrame.grid(row=1, column=0, sticky="news")
         self.__coverButtonFrame.place(in_=self.__resetButton, relwidth=1, relheight=1)
@@ -188,6 +190,7 @@ class Game:
         self.__id = self.__window.after(1000, self.update_counter)
 
     def resetGame(self):
+        self.__finished = False
         self.__resetButton.config(image=self.__smileyPics[0])
 
         self.__coverFrame.grid_forget()
@@ -287,6 +290,7 @@ class Game:
             self.__firstSafeClick = FirstSafeClick.INACTIVE
 
         if self.__game.get_board()[row][column].has_mine:
+            self.__finished = True
             self.__firstSafeClick = FirstSafeClick.ACTIVE
             mixer.music.load("Sounds/Lose.mp3")
             if self.__soundOnOff == 1:
@@ -337,6 +341,7 @@ class Game:
                         return
 
     def youWin(self):
+        self.__finished = True
         self.__firstSafeClick = FirstSafeClick.ACTIVE
         mixer.music.load("Sounds/Win.mp3")
         if self.__soundOnOff == 1:
